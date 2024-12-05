@@ -10,8 +10,8 @@ def download_kaggle_dataset():
     """
     Downloads a Kaggle dataset using the Kaggle CLI.
     """
-    dataset = "arshkon/linkedin-job-postings"
-    destination = EXTERNAL_DATA_DIR / "LinkedIn Job Postings (2023 - 2024)"
+    dataset = "ravindrasinghrana/job-description-dataset"
+    destination = EXTERNAL_DATA_DIR / "job-description-dataset"
 
     try:
         # Ensure destination directory exists

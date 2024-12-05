@@ -1,14 +1,15 @@
 from loguru import logger
 import subprocess
+from pathlib import Path  # Import Path for handling directories
 
-EXTERNAL_DATA_DIR = "../../../data/external"
+# Define the external data directory
+EXTERNAL_DATA_DIR = Path("../../../data/external")
 
 
 def download_kaggle_dataset():
     """
-    Downloads a Kaggle dataset.
+    Downloads a Kaggle dataset using the Kaggle CLI.
     """
-
     dataset = "PromptCloudHQ/us-technology-jobs-on-dicecom"
     destination = EXTERNAL_DATA_DIR + "U.S. Technology Jobs on Dice.com"
 
@@ -17,7 +18,7 @@ def download_kaggle_dataset():
         destination.mkdir(parents=True, exist_ok=True)
 
         logger.info(f"Downloading dataset: {dataset} to {destination}")
-        # Use kaggle API to download dataset
+        # Use Kaggle API to download the dataset
         subprocess.run(
             [
                 "kaggle",
@@ -34,6 +35,10 @@ def download_kaggle_dataset():
         logger.info(f"Dataset downloaded successfully to {destination}")
     except subprocess.CalledProcessError as e:
         logger.error(f"Failed to download dataset: {dataset}. Error: {e}")
+    except FileNotFoundError as e:
+        logger.error(
+            f"Kaggle CLI not found. Please ensure it is installed and configured. Error: {e}"
+        )
     except Exception as e:
         logger.error(f"Unexpected error: {e}")
 
