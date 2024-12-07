@@ -53,9 +53,31 @@ def test_model_on_sentences(sentences, classifier):
         results = classifier(sentence)
         if results:
             print("Extracted Entities:")
+            merged_entities = []
+            current_entity = None
             for result in results:
+                word = result["word"].replace("##", "")
+                if (
+                    current_entity
+                    and result["entity_group"] == current_entity["entity_group"]
+                ):
+                    current_entity["word"] += word
+                    current_entity["score"] = (
+                        current_entity["score"] + result["score"]
+                    ) / 2
+                else:
+                    if current_entity:
+                        merged_entities.append(current_entity)
+                    current_entity = {
+                        "entity_group": result["entity_group"],
+                        "word": word,
+                        "score": result["score"],
+                    }
+            if current_entity:
+                merged_entities.append(current_entity)
+            for entity in merged_entities:
                 print(
-                    f"Entity Group: {result['entity_group']}, Word: '{result['word']}', Confidence Score: {result['score']:.4f}"
+                    f"Entity Group: {entity['entity_group']}, Word: '{entity['word']}', Confidence Score: {entity['score']:.4f}"
                 )
         else:
             print("No entities detected.")
