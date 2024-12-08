@@ -2,6 +2,7 @@ import pandas as pd
 import yaml
 from pathlib import Path
 from transformers import pipeline
+from collections import Counter
 
 # Load the model
 model_name = "GalalEwida/LLM-BERT-Model-Based-Skills-Extraction-from-jobdescription"
@@ -97,7 +98,11 @@ def refine_labels(ner_results):
                 )
 
         else:
-            label = "O"  # Set default value for words without entity or not matching conditions
+            continue  # Skip words without entity or not matching conditions
+
+        # Replace I- Biology with B- Biology
+        if label.startswith("I-"):
+            label = label.replace("I-", "B-")
 
         # Add the adjusted entry to the results
         refined_labels.append(
@@ -115,6 +120,7 @@ def refine_labels(ner_results):
 
 # Create a list to store the results
 result_data = []
+all_entities = []
 
 # Process each chunk with the NER model
 for chunk in chunks:
@@ -126,9 +132,18 @@ for chunk in chunks:
     # Add chunk and refined labels to the list
     result_data.append({"chunks": chunk, "labels": refined_labels})
 
+    # Collect all entities
+    all_entities.extend([label["entity"] for label in refined_labels])
+
 # Create a new DataFrame
 new_dataset = pd.DataFrame(result_data)
 
 # Save the results
 output_path = INTERIM_DATA_DIR / "labeled_ner_dataset.csv"
 new_dataset.to_csv(output_path, index=False)
+
+# Display unique entities and their counts
+entity_counts = Counter(all_entities)
+print("Unique entities and their counts:")
+for entity, count in entity_counts.items():
+    print(f"{entity}: {count}")
