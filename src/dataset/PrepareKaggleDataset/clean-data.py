@@ -4,13 +4,13 @@ from pathlib import Path
 from nltk.corpus import stopwords
 
 # Load data
-EXTERNAL_DATA_DIR = Path("../../../data/external")
-df = pd.read_csv(EXTERNAL_DATA_DIR / "filtered_job_descriptions.csv")
+INTERIM_DATA_DIR = Path("../../../data/interim")
+df = pd.read_csv(INTERIM_DATA_DIR / "filtered_job_descriptions.csv")
 
 
 # Clean data
 def clean_text(text):
-    if isinstance(text, float):
+    if not isinstance(text, str):
         return ""
     # 1. remove html tags
     text = re.sub(r"<.*?>", "", text)
@@ -25,7 +25,9 @@ def clean_text(text):
 
 # Apply the clean_text function to the description column
 df["description"] = df["description"].astype(str).apply(clean_text)
+nan_sum_chunks = df["description"].isna().sum()
+print("Sum of NaN values in chunks:", nan_sum_chunks)
 
-output_path = EXTERNAL_DATA_DIR / "cleaned_data.csv"
+output_path = INTERIM_DATA_DIR / "cleaned_data.csv"
 df.to_csv(output_path, index=False)
 print("successfully cleaned data and saved to", output_path)

@@ -6,6 +6,8 @@ import re
 # Create directories path
 EXTERNAL_DATA_DIR = Path("../../../data/external")
 RAW_DATA_DIR = Path("../../../data/raw")
+INTERIM_DATA_DIR = Path("../../../data/interim")
+
 jobdescriptiondataset = (
     EXTERNAL_DATA_DIR / "job-description-dataset/job_descriptions.csv"
 )
@@ -16,6 +18,7 @@ linkedinjobposting = (
 ustechnologyjobsondice = (
     EXTERNAL_DATA_DIR / "U.S. Technology Jobs on Dice.com/dice_com-job_us_sample.csv"
 )
+jobsandjobdescription = EXTERNAL_DATA_DIR / "jobs-and-job-description/job_title_des.csv"
 
 # Columns that contain job title and job description in each dataset
 file_columns = {
@@ -23,6 +26,7 @@ file_columns = {
     datasetglassdoor: ["Job Title", "Job Description"],
     linkedinjobposting: ["title", "description"],
     ustechnologyjobsondice: ["jobtitle", "jobdescription"],
+    jobsandjobdescription: ["Job Title", "Job Description"],
 }
 
 
@@ -101,6 +105,6 @@ print("Check NaN Values:")
 print(all_descriptions.isnull().sum())
 
 # Save the filtered job descriptions to a csv file
-output_path = EXTERNAL_DATA_DIR / "filtered_job_descriptions.csv"
+output_path = INTERIM_DATA_DIR / "filtered_job_descriptions.csv"
 all_descriptions.to_csv(output_path, index=False)
 print(f"บันทึกเฉพาะ description ลงในไฟล์: {output_path}")

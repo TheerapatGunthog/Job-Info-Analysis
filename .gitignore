@@ -1,6 +1,9 @@
 # Data
 data/
 
+# Testing-floder
+src/testing-floder/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

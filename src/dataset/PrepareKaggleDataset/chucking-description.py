@@ -42,25 +42,22 @@ def chunk_sentences(sentences, max_tokens=512):
     if current_chunk:
         chunks.append(" ".join(current_chunk))
 
+    # If no chunking occurred, return the original sentences
+    if len(chunks) == 1 and len(sentences) == 1:
+        return sentences
+
     return chunks
 
 
-EXTERNAL_DATA_DIR = Path("../../../data/external")
-df = pd.read_csv(EXTERNAL_DATA_DIR / "cleaned_data.csv")
+INTERIM_DATA_DIR = Path("../../../data/interim")
+df = pd.read_csv(INTERIM_DATA_DIR / "cleaned_data.csv")
 
-# Split chunks into sentences
-df["sentences"] = df["description"].progress_apply(lambda x: split_sentences(x))
-
-# Chunk sentences into chunks of max_tokens
-df["chunks"] = df["sentences"].progress_apply(
-    lambda x: chunk_sentences(x, max_tokens=510)
+# Apply the chunking process to the description column
+df["chunks"] = df["description"].progress_apply(
+    lambda x: chunk_sentences(split_sentences(x))
 )
 
-# Explode chunks into separate rows
-df_exploded = df.explode("chunks").reset_index(drop=True)
-
-# Save data
-output_path = EXTERNAL_DATA_DIR / "bert_ready_data.csv"
-df_exploded.to_csv(output_path, index=False)
-
-print(f"Data saved to {output_path}")
+# Save the chunked data to a new CSV file
+output_path = INTERIM_DATA_DIR / "bert_ready_data.csv"
+df.to_csv(output_path, index=False)
+print(f"Successfully saved chunked data to {output_path}")
