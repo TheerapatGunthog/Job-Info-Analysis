@@ -49,13 +49,19 @@ def chunk_sentences(sentences, max_tokens=512):
     return chunks
 
 
-INTERIM_DATA_DIR = Path("../../../data/interim")
+INTERIM_DATA_DIR = Path("/home/whilebell/Code/Project/Job-Info-Analysis/data/interim")
 df = pd.read_csv(INTERIM_DATA_DIR / "cleaned_data.csv")
+
+# Debugging NaN value in dataset
+df = df.dropna(subset=["description"])
 
 # Apply the chunking process to the description column
 df["chunks"] = df["description"].progress_apply(
     lambda x: chunk_sentences(split_sentences(x))
 )
+
+# Show df number of rows
+print(f"Number of rows: {df.shape[0]}")
 
 # Save the chunked data to a new CSV file
 output_path = INTERIM_DATA_DIR / "bert_ready_data.csv"

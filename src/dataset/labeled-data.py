@@ -3,6 +3,7 @@ import yaml
 from pathlib import Path
 from transformers import pipeline
 from collections import Counter
+import json
 
 # Load the model
 model_name = "GalalEwida/LLM-BERT-Model-Based-Skills-Extraction-from-jobdescription"
@@ -16,9 +17,7 @@ df = pd.read_csv(INTERIM_DATA_DIR / "bert_ready_data.csv")
 with open(RAW_DATA_DIR / "classification-keyword.yaml", "r") as file:
     keywords = yaml.safe_load(file)
 
-# Use the 'chunks' column for processing
-chunks = df["chunks"]
-
+# Extract keyword categories
 programming_languages = set(keywords["keywords"]["programming_languages"])
 frameworks = set(keywords["keywords"]["frameworks"])
 tools = set(keywords["keywords"]["tools"])
@@ -37,9 +36,10 @@ def combine_subwords(ner_results):
     for entity in ner_results:
         word = entity["word"]
         if word.startswith("##"):
-            buffer_word += word[2:]  # Continue the previous word
+            buffer_word += word[2:]  # Append to the current word
         else:
             if buffer_word:
+                # Append the completed word before starting a new one
                 combined_results.append(
                     {
                         "entity": buffer_entity,
@@ -52,6 +52,7 @@ def combine_subwords(ner_results):
             buffer_entity = entity["entity"]
             buffer_start = entity["start"]
 
+    # Append the last word in the buffer
     if buffer_word:
         combined_results.append(
             {
@@ -67,83 +68,97 @@ def combine_subwords(ner_results):
 
 def refine_labels(ner_results):
     """
-    Refine labels by adding specific categories (Programming Language and Framework)
+    Refine labels by adding specific categories (Programming Language, Framework, etc.)
     """
     refined_labels = []
-    combined_results = combine_subwords(ner_results)  # Combine words into full words
+    combined_results = combine_subwords(ner_results)
 
     for entity in combined_results:
-        label = entity.get("entity")  # Get the label, if not present return None
+        label = entity.get("entity")
         word = entity.get("word", "").strip().lower()
 
-        # Check and adjust the label
+        # Map to specific categories based on keywords
         if label and (
             label.startswith("B-TECHNOLOGY") or label.startswith("I-TECHNOLOGY")
         ):
             if word in programming_languages:
-                label = label.replace("B-TECHNOLOGY", "B-PROGRAMMINGLANG").replace(
-                    "I-TECHNOLOGY", "I-PROGRAMMINGLANG"
-                )
+                label = "PROGRAMMINGLANG"
             elif word in frameworks:
-                label = label.replace("B-TECHNOLOGY", "B-FRAMEWORK").replace(
-                    "I-TECHNOLOGY", "I-FRAMEWORK"
-                )
+                label = "FRAMEWORK"
             elif word in tools:
-                label = label.replace("B-TECHNOLOGY", "B-TOOLS").replace(
-                    "I-TECHNOLOGY", "I-TOOLS"
-                )
+                label = "TOOLS"
             elif word in databases:
-                label = label.replace("B-TECHNOLOGY", "B-DATABASE").replace(
-                    "I-TECHNOLOGY", "I-DATABASE"
-                )
-
+                label = "DATABASE"
+            else:
+                label = "TECHNOLOGY"  # Default to TECHNOLOGY if no match
         else:
-            continue  # Skip words without entity or not matching conditions
+            # Skip words that are not TECHNOLOGY-related
+            continue
 
-        # Replace I- Biology with B- Biology
-        if label.startswith("I-"):
-            label = label.replace("I-", "B-")
-
-        # Add the adjusted entry to the results
+        # Add refined label
         refined_labels.append(
             {
                 "entity": label,
-                "start": entity.get(
-                    "start", -1
-                ),  # Set default value if start is not present
-                "end": entity.get("end", -1),  # Set default value if end is not present
-                "word": entity.get("word", ""),  # Keep the original word
+                "start": entity["start"],
+                "end": entity["end"],
+                "text": entity["word"],
             }
         )
     return refined_labels
 
 
-# Create a list to store the results
-result_data = []
-all_entities = []
+# Create a list to store the results in Label Studio format
+label_studio_data = []
+all_entities = []  # To store all entities for counting
 
-# Process each chunk with the NER model
-for chunk in chunks:
-    ner_results = ner(chunk)
-
-    # Refine labels
+# Process each chunk
+for index, row in df.iterrows():
+    text = row["chunks"]
+    ner_results = ner(text)
     refined_labels = refine_labels(ner_results)
 
-    # Add chunk and refined labels to the list
-    result_data.append({"chunks": chunk, "labels": refined_labels})
+    # Add refined labels to the Label Studio data
+    label_studio_data.append(
+        {
+            "id": str(index),  # Ensure this is a string
+            "data": {"text": text},  # Include text under "data"
+            "annotations": [
+                {
+                    "id": index,  # Use an integer ID for the annotation
+                    "result": [
+                        {
+                            "value": {
+                                "start": label["start"],
+                                "end": label["end"],
+                                "text": label["text"],
+                                "labels": [label["entity"]],
+                            },
+                            "id": f"result-{index}-{i}",  # Unique ID for result
+                            "from_name": "label",
+                            "to_name": "text",
+                            "type": "labels",
+                        }
+                        for i, label in enumerate(refined_labels)
+                    ],
+                }
+            ],
+        }
+    )
 
-    # Collect all entities
+    # Collect all entities for counting
     all_entities.extend([label["entity"] for label in refined_labels])
 
-# Create a new DataFrame
-new_dataset = pd.DataFrame(result_data)
+# Save the results as JSON
+output_path = INTERIM_DATA_DIR / "labeled_ner_dataset.json"
+with open(output_path, "w", encoding="utf-8") as f:
+    json.dump(label_studio_data, f, ensure_ascii=False, indent=4)
 
-# Save the results
-output_path = INTERIM_DATA_DIR / "labeled_ner_dataset.csv"
-new_dataset.to_csv(output_path, index=False)
+print(f"Data saved to {output_path}")
+
+# Count the frequency of each unique entity
+entity_counts = Counter(all_entities)
 
 # Display unique entities and their counts
-entity_counts = Counter(all_entities)
-print("Unique entities and their counts:")
+print("\nUnique entities and their counts:")
 for entity, count in entity_counts.items():
     print(f"{entity}: {count}")
