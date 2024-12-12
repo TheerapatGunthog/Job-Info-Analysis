@@ -10,7 +10,7 @@ tqdm.pandas()
 nlp = spacy.load("en_core_web_sm")
 
 # Load BERT tokenizer
-tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
+tokenizer = BertTokenizer.from_pretrained("distilbert-base-uncased")
 
 
 # Function to split text into sentences
@@ -20,7 +20,7 @@ def split_sentences(text):
 
 
 # Function to chunk sentences into chunks of max_tokens
-def chunk_sentences(sentences, max_tokens=512):
+def chunk_sentences(sentences, max_tokens=128):
     chunks = []
     current_chunk = []
     current_length = 0
@@ -64,6 +64,6 @@ df["chunks"] = df["description"].progress_apply(
 print(f"Number of rows: {df.shape[0]}")
 
 # Save the chunked data to a new CSV file
-output_path = INTERIM_DATA_DIR / "bert_ready_data.csv"
+output_path = INTERIM_DATA_DIR / "chunking_data.csv"
 df.to_csv(output_path, index=False)
 print(f"Successfully saved chunked data to {output_path}")

@@ -1,0 +1,25 @@
+{
+    "label2id": {
+        "O": 0,
+        "B-PROGRAMMINGLANG": 1,
+        "I-PROGRAMMINGLANG": 2,
+        "B-TECHNOLOGY": 3,
+        "I-TECHNOLOGY": 4,
+        "B-DATABASE": 5,
+        "I-DATABASE": 6,
+        "B-FRAMEWORKLIBARY": 7,
+        "I-FRAMEWORKLIBARY": 8
+    },
+    "id2label": {
+        "0": "O",
+        "1": "B-PROGRAMMINGLANG",
+        "2": "I-PROGRAMMINGLANG",
+        "3": "B-TECHNOLOGY",
+        "4": "I-TECHNOLOGY",
+        "5": "B-DATABASE",
+        "6": "I-DATABASE",
+        "7": "B-FRAMEWORKLIBARY",
+        "8": "I-FRAMEWORKLIBARY"
+    },
+    "model_name": "distilbert-base-uncased"
+}
