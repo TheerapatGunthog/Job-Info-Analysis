@@ -16,23 +16,20 @@ df = pd.read_csv(INTERIM_DATA_DIR / "chunking_data.csv")
 
 # Load keywords from YAML file
 with open(RAW_DATA_DIR / "classification-keyword.yaml", "r") as file:
-    keywords = yaml.safe_load(file)
+    classification_keywords = yaml.safe_load(file)
+
+with open(RAW_DATA_DIR / "exclusion-keyword.yaml", "r") as file:
+    exclusion_keywords = yaml.safe_load(file)
 
 # Extract keyword categories
 programming_languages = set(
-    map(str.lower, keywords["keywords"]["programming_languages"])
+    map(str.lower, classification_keywords["keywords"]["programming_languages"])
 )
-databases = set(map(str.lower, keywords["keywords"]["databases"]))
-frameworkandlibary = set(map(str.lower, keywords["keywords"]["FrameworkLibrary"]))
-
-
-def normalize_word(word):
-    """
-    Normalize word to lowercase and remove special characters like ##.
-    """
-    word = word.lower()
-    word = re.sub(r"[^a-z0-9]", "", word)  # Remove non-alphanumeric characters
-    return word
+databases = set(map(str.lower, classification_keywords["keywords"]["databases"]))
+frameworkandlibary = set(
+    map(str.lower, classification_keywords["keywords"]["FrameworkLibrary"])
+)
+exclusion_word = set(map(str.lower, exclusion_keywords["keywords"]))
 
 
 def combine_subwords(ner_results):
@@ -88,10 +85,12 @@ def refine_labels(ner_results):
     for entity in combined_results:
         label = entity.get("entity")
         word = entity.get("word", "").strip()
-        normalized_word = normalize_word(word)
 
         # Debugging step to see matching process
-        print(f"Checking word: '{normalized_word}'")
+        print(f"Checking word: '{word}'")
+
+        if label in exclusion_word:
+            continue
 
         # Map to specific categories based on keywords
         if (
@@ -99,19 +98,17 @@ def refine_labels(ner_results):
             and (label.startswith("B-TECHNOLOGY") or label.startswith("I-TECHNOLOGY"))
             or (label.startswith("B-TECHNICAL") or label.startswith("I-TECHNICAL"))
         ):
-            if normalized_word in programming_languages:
-                print(f"Matched '{normalized_word}' as PROGRAMMINGLANG")
+            if word in programming_languages:
+                print(f"Matched '{word}' as PROGRAMMINGLANG")
                 label = "PROGRAMMINGLANG"
-            elif normalized_word in databases:
-                print(f"Matched '{normalized_word}' as DATABASE")
+            elif word in databases:
+                print(f"Matched '{word}' as DATABASE")
                 label = "DATABASE"
-            elif normalized_word in frameworkandlibary:
-                print(f"Matched '{normalized_word}' as FRAMEWORK")
-                label = "FRAMEWORK&LIBARY"
+            elif word in frameworkandlibary:
+                print(f"Matched '{word}' as FRAMEWORK")
+                label = "FRAMEWORK_LIBRARY"
             else:
-                print(
-                    f"No match found for '{normalized_word}', defaulting to TECHNOLOGY"
-                )
+                print(f"No match found for '{word}', defaulting to TECHNOLOGY")
                 if label == "B-TECHNICAL" or label == "I-TECHNICAL":
                     continue
                 else:
