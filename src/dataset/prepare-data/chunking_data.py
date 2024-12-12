@@ -20,7 +20,7 @@ def split_sentences(text):
 
 
 # Function to chunk sentences into chunks of max_tokens
-def chunk_sentences(sentences, max_tokens=128):
+def chunk_sentences(sentences, max_tokens=50):
     chunks = []
     current_chunk = []
     current_length = 0
