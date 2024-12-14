@@ -5,6 +5,7 @@ from transformers import pipeline
 from collections import Counter
 import json
 import re
+from tqdm import tqdm
 
 # Load the model
 model_name = "GalalEwida/LLM-BERT-Model-Based-Skills-Extraction-from-jobdescription"
@@ -12,7 +13,7 @@ ner = pipeline("ner", model=model_name, tokenizer=model_name, device=0)
 
 INTERIM_DATA_DIR = Path("/home/whilebell/Code/Project/Job-Info-Analysis/data/interim")
 RAW_DATA_DIR = Path("/home/whilebell/Code/Project/Job-Info-Analysis/data/raw")
-df = pd.read_csv(INTERIM_DATA_DIR / "chunking_data.csv")
+df = pd.read_csv(INTERIM_DATA_DIR / "chunking_commas_data.csv")
 
 # Load keywords from YAML file
 with open(RAW_DATA_DIR / "classification-keyword.yaml", "r") as file:
@@ -29,6 +30,7 @@ databases = set(map(str.lower, classification_keywords["keywords"]["databases"])
 frameworkandlibary = set(
     map(str.lower, classification_keywords["keywords"]["FrameworkLibrary"])
 )
+technology = set(map(str.lower, classification_keywords["keywords"]["technology"]))
 exclusion_word = set(map(str.lower, exclusion_keywords["keywords"]))
 
 
@@ -71,50 +73,39 @@ def combine_subwords(ner_results):
     return combined_results
 
 
-def refine_labels(ner_results):
+def refine_labels(ner_results, text):
     """
     Refine labels by adding specific categories (Programming Language, Framework&&Libary, etc.)
     """
     refined_labels = []
     combined_results = combine_subwords(ner_results)
 
-    print("\nCombined Results:")
+    # Map NER results to specific categories
     for entity in combined_results:
-        print(entity)
+        word = entity.get("word", "").strip().lower()  # Normalize word to lowercase
 
-    for entity in combined_results:
-        label = entity.get("entity")
-        word = entity.get("word", "").strip()
-
-        # Debugging step to see matching process
-        print(f"Checking word: '{word}'")
-
-        if label in exclusion_word:
+        # Skip words in exclusion keywords
+        if word in exclusion_word:
             continue
 
-        # Map to specific categories based on keywords
-        if (
-            label
-            and (label.startswith("B-TECHNOLOGY") or label.startswith("I-TECHNOLOGY"))
-            or (label.startswith("B-TECHNICAL") or label.startswith("I-TECHNICAL"))
+        label = entity.get("entity")
+
+        # Assign specific categories based on keywords
+        if word in programming_languages:
+            label = "PROGRAMMINGLANG"
+        elif word in databases:
+            label = "DATABASE"
+        elif word in frameworkandlibary:
+            label = "FRAMEWORK_LIBRARY"
+        elif label and (
+            label.startswith("B-TECHNOLOGY") or label.startswith("I-TECHNOLOGY")
         ):
-            if word in programming_languages:
-                print(f"Matched '{word}' as PROGRAMMINGLANG")
-                label = "PROGRAMMINGLANG"
-            elif word in databases:
-                print(f"Matched '{word}' as DATABASE")
-                label = "DATABASE"
-            elif word in frameworkandlibary:
-                print(f"Matched '{word}' as FRAMEWORK")
-                label = "FRAMEWORK_LIBRARY"
-            else:
-                print(f"No match found for '{word}', defaulting to TECHNOLOGY")
-                if label == "B-TECHNICAL" or label == "I-TECHNICAL":
-                    continue
-                else:
-                    label = "TECHNOLOGY"
+            label = "TECHNOLOGY"
+        elif label and (
+            label.startswith("B-TECHNICAL") or label.startswith("I-TECHNICAL")
+        ):
+            label = "TECHNICAL"
         else:
-            # Skip words that are not TECHNOLOGY-related
             continue
 
         # Add refined label
@@ -126,6 +117,33 @@ def refine_labels(ner_results):
                 "text": entity["word"],
             }
         )
+
+    # Additional step: find keywords in the text that were not labeled by NER
+    # text_lower = text.lower()
+    # for keyword, category in [
+    #     (programming_languages, "PROGRAMMINGLANG"),
+    #     (databases, "DATABASE"),
+    #     (frameworkandlibary, "FRAMEWORK_LIBRARY"),
+    #     (technology, "TECHNOLOGY"),
+    # ]:
+    #     for keyword_item in keyword:
+    #         # Use regex to find occurrences of the keyword in the text
+    #         for match in re.finditer(rf"\b{re.escape(keyword_item)}\b", text_lower):
+    #             start, end = match.span()
+    #             # Check if the word was already labeled by NER
+    #             if not any(
+    #                 start <= label["start"] < end or start < label["end"] <= end
+    #                 for label in refined_labels
+    #             ):
+    #                 refined_labels.append(
+    #                     {
+    #                         "entity": category,
+    #                         "start": start,
+    #                         "end": end,
+    #                         "text": text[start:end],
+    #                     }
+    #                 )
+
     return refined_labels
 
 
@@ -134,17 +152,11 @@ label_studio_data = []
 all_entities = []  # To store all entities for counting
 idcount = 0
 # Process each chunk
-for index, row in df.iterrows():
+for index, row in tqdm(df.iterrows(), total=len(df), desc="Processing chunks"):
     text = row["chunks"]
-    print(f"\nProcessing chunk {index}: {text}")
     ner_results = ner(text)
 
-    # Debugging: Print raw NER results
-    print("\nRaw NER results:")
-    for r in ner_results:
-        print(r)
-
-    refined_labels = refine_labels(ner_results)
+    refined_labels = refine_labels(ner_results, text)
 
     # Add refined labels to the Label Studio data
     if refined_labels:  # ตรวจสอบว่า refined_labels ไม่ใช่ list ว่าง
@@ -175,9 +187,6 @@ for index, row in df.iterrows():
             }
         )
         idcount += 1
-
-    # Collect all entities for counting
-    all_entities.extend([label["entity"] for label in refined_labels])
 
     # Collect all entities for counting
     all_entities.extend([label["entity"] for label in refined_labels])
