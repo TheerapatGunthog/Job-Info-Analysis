@@ -13,8 +13,8 @@ df = pd.read_csv(INTERIM_DATA_DIR / "filtered_job_descriptions.csv")
 
 # Compile regex patterns for performance
 html_tags_pattern = re.compile(r"<.*?>")
-non_alphanumeric_pattern = re.compile(r"[^a-zA-Z0-9.'\" ]+")
-sentence_end_pattern = re.compile(r"(?<!\w\.)[.,](?!\s|$)")
+non_alphanumeric_pattern = re.compile(r"[^a-zA-Z0-9.,'\" ]+")
+sentence_end_pattern = re.compile(r"(?<!\w\.)\.(?!\s|$)")
 
 # Load stopwords
 stop_words = set(stopwords.words("english"))
@@ -28,7 +28,7 @@ def clean_text(text):
     text = html_tags_pattern.sub("", text)
     # Remove non-alphanumeric characters except sentence-ending dots and commas
     text = non_alphanumeric_pattern.sub(" ", text)
-    # Remove dots and commas within sentences
+    # Remove dots within sentences
     text = sentence_end_pattern.sub("", text)
     # Convert to lowercase
     text = text.lower()
@@ -44,7 +44,7 @@ df["description"] = df["description"].astype(str).apply(clean_text)
 
 # Log missing descriptions
 missing_descriptions = df["description"].isna().sum()
-print(f"จำนวนข้อมูลที่ไม่มีคำอธิบาย: {missing_descriptions}")
+print(f"Description missing: {missing_descriptions}")
 
 # Save cleaned data
 output_path = INTERIM_DATA_DIR / "cleaned_data.csv"
