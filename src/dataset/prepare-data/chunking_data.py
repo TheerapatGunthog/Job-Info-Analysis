@@ -1,5 +1,5 @@
 import spacy
-from transformers import BertTokenizer
+from transformers import DistilBertTokenizer
 import pandas as pd
 from pathlib import Path
 from tqdm import tqdm
@@ -9,8 +9,8 @@ tqdm.pandas()
 # Load English tokenizer, tagger, parser, NER and word vectors
 nlp = spacy.load("en_core_web_sm")
 
-# Load BERT tokenizer
-tokenizer = BertTokenizer.from_pretrained("distilbert-base-uncased")
+# Load DistilBERT tokenizer
+tokenizer = DistilBertTokenizer.from_pretrained("distilbert-base-uncased")
 
 
 # Function to split text into sentences

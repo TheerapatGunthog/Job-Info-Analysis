@@ -15,6 +15,7 @@ df = pd.read_csv(INTERIM_DATA_DIR / "filtered_job_descriptions.csv")
 html_tags_pattern = re.compile(r"<.*?>")
 non_alphanumeric_pattern = re.compile(r"[^a-zA-Z0-9.,'\" ]+")
 sentence_end_pattern = re.compile(r"(?<!\w\.)\.(?!\s|$)")
+comma_pattern = re.compile(r",")
 
 # Load stopwords
 stop_words = set(stopwords.words("english"))
@@ -28,6 +29,8 @@ def clean_text(text):
     text = html_tags_pattern.sub("", text)
     # Remove non-alphanumeric characters except sentence-ending dots and commas
     text = non_alphanumeric_pattern.sub(" ", text)
+    # Remove commas
+    text = comma_pattern.sub("", text)
     # Remove dots within sentences
     text = sentence_end_pattern.sub("", text)
     # Convert to lowercase

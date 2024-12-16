@@ -13,7 +13,7 @@ ner = pipeline("ner", model=model_name, tokenizer=model_name, device=0)
 
 INTERIM_DATA_DIR = Path("/home/whilebell/Code/Project/Job-Info-Analysis/data/interim")
 RAW_DATA_DIR = Path("/home/whilebell/Code/Project/Job-Info-Analysis/data/raw")
-df = pd.read_csv(INTERIM_DATA_DIR / "chunking_commas_data.csv")
+df = pd.read_csv(INTERIM_DATA_DIR / "chunking_data.csv")
 
 # Load keywords from YAML file
 with open(RAW_DATA_DIR / "classification-keyword.yaml", "r") as file:
@@ -22,16 +22,30 @@ with open(RAW_DATA_DIR / "classification-keyword.yaml", "r") as file:
 with open(RAW_DATA_DIR / "exclusion-keyword.yaml", "r") as file:
     exclusion_keywords = yaml.safe_load(file)
 
+
+def flatten_and_lower(keyword_list):
+    """
+    Flatten a nested list of keywords and convert all words to lowercase.
+    """
+    flattened_list = []
+    for item in keyword_list:
+        if isinstance(item, list):  # ถ้าเป็น list ให้แยกออกมา
+            flattened_list.extend([sub_item.lower() for sub_item in item])
+        else:  # ถ้าเป็น string ธรรมดา
+            flattened_list.append(item.lower())
+    return set(flattened_list)
+
+
 # Extract keyword categories
-programming_languages = set(
-    map(str.lower, classification_keywords["keywords"]["programming_languages"])
+programming_languages = flatten_and_lower(
+    classification_keywords["keywords"]["programming_languages"]
 )
-databases = set(map(str.lower, classification_keywords["keywords"]["databases"]))
-frameworkandlibary = set(
-    map(str.lower, classification_keywords["keywords"]["FrameworkLibrary"])
+databases = flatten_and_lower(classification_keywords["keywords"]["databases"])
+frameworkandlibary = flatten_and_lower(
+    classification_keywords["keywords"]["frameworks_libraries"]
 )
-technology = set(map(str.lower, classification_keywords["keywords"]["technology"]))
-exclusion_word = set(map(str.lower, exclusion_keywords["keywords"]))
+tools = flatten_and_lower(classification_keywords["keywords"]["tools"])
+exclusion_word = flatten_and_lower(exclusion_keywords["keywords"])
 
 
 def combine_subwords(ner_results):
@@ -75,74 +89,85 @@ def combine_subwords(ner_results):
 
 def refine_labels(ner_results, text):
     """
-    Refine labels by adding specific categories (Programming Language, Framework&&Libary, etc.)
+    Refine labels by adding BIO scheme for multiword and single-word keywords.
     """
     refined_labels = []
     combined_results = combine_subwords(ner_results)
 
-    # Map NER results to specific categories
-    for entity in combined_results:
-        word = entity.get("word", "").strip().lower()  # Normalize word to lowercase
+    # Helper: Build a multiword regex pattern
+    def build_multiword_patterns(keyword_list, label_prefix):
+        patterns = []
+        for phrase in keyword_list:
+            if " " in phrase:  # Detect multiword phrases only
+                regex = r"\b" + r"\s+".join(map(re.escape, phrase.split())) + r"\b"
+                patterns.append(
+                    (re.compile(regex, re.IGNORECASE), label_prefix, phrase)
+                )
+        return patterns
 
-        # Skip words in exclusion keywords
+    # Create multiword patterns for all categories
+    multiword_patterns = []
+    multiword_patterns += build_multiword_patterns(
+        programming_languages, "PROGRAMMINGLANG"
+    )
+    multiword_patterns += build_multiword_patterns(databases, "DATABASE")
+    multiword_patterns += build_multiword_patterns(
+        frameworkandlibary, "FRAMEWORK_LIBRARY"
+    )
+    multiword_patterns += build_multiword_patterns(tools, "TOOLS")
+
+    # Detect and label multiword entities
+    matches = []
+    for pattern, label_prefix, phrase in multiword_patterns:
+        for match in pattern.finditer(text):
+            start, end = match.span()
+            words = phrase.split()
+            current_pos = start
+
+            for i, word in enumerate(words):
+                word_start = text.find(word, current_pos, end)
+                word_end = word_start + len(word)
+                label = f"B-{label_prefix}" if i == 0 else f"I-{label_prefix}"
+                matches.append(
+                    {
+                        "entity": label,
+                        "start": word_start,
+                        "end": word_end,
+                        "text": text[word_start:word_end],
+                    }
+                )
+                current_pos = word_end
+
+    refined_labels.extend(matches)
+
+    # Process single-word entities (already handled in YAML)
+    for entity in combined_results:
+        word = entity.get("word", "").strip().lower()
         if word in exclusion_word:
             continue
 
-        label = entity.get("entity")
-
-        # Assign specific categories based on keywords
+        label = None
         if word in programming_languages:
-            label = "PROGRAMMINGLANG"
+            label = "B-PROGRAMMINGLANG"
         elif word in databases:
-            label = "DATABASE"
+            label = "B-DATABASE"
         elif word in frameworkandlibary:
-            label = "FRAMEWORK_LIBRARY"
-        elif label and (
-            label.startswith("B-TECHNOLOGY") or label.startswith("I-TECHNOLOGY")
-        ):
-            label = "TECHNOLOGY"
-        elif label and (
-            label.startswith("B-TECHNICAL") or label.startswith("I-TECHNICAL")
-        ):
-            label = "TECHNICAL"
-        else:
-            continue
+            label = "B-FRAMEWORK_LIBRARY"
+        elif word in tools:
+            label = "B-TOOLS"
 
-        # Add refined label
-        refined_labels.append(
-            {
-                "entity": label,
-                "start": entity["start"],
-                "end": entity["end"],
-                "text": entity["word"],
-            }
-        )
+        if label:
+            refined_labels.append(
+                {
+                    "entity": label,
+                    "start": entity["start"],
+                    "end": entity["end"],
+                    "text": entity["word"],
+                }
+            )
 
-    # Additional step: find keywords in the text that were not labeled by NER
-    # text_lower = text.lower()
-    # for keyword, category in [
-    #     (programming_languages, "PROGRAMMINGLANG"),
-    #     (databases, "DATABASE"),
-    #     (frameworkandlibary, "FRAMEWORK_LIBRARY"),
-    #     (technology, "TECHNOLOGY"),
-    # ]:
-    #     for keyword_item in keyword:
-    #         # Use regex to find occurrences of the keyword in the text
-    #         for match in re.finditer(rf"\b{re.escape(keyword_item)}\b", text_lower):
-    #             start, end = match.span()
-    #             # Check if the word was already labeled by NER
-    #             if not any(
-    #                 start <= label["start"] < end or start < label["end"] <= end
-    #                 for label in refined_labels
-    #             ):
-    #                 refined_labels.append(
-    #                     {
-    #                         "entity": category,
-    #                         "start": start,
-    #                         "end": end,
-    #                         "text": text[start:end],
-    #                     }
-    #                 )
+    # Sort refined labels by start position (optional for clarity)
+    refined_labels = sorted(refined_labels, key=lambda x: x["start"])
 
     return refined_labels
 
